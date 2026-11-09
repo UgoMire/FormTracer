@@ -1,4 +1,12 @@
 # FormTracer
+
+> **Note:** This is a fork of [FormTracer/FormTracer].
+> It adds, in version 2.4.0:
+> * the **charge conjugation matrix** and Dirac matrices contracted in any index order (transposed Dirac matrices);
+> * the **antisymmetric and symmetric generators of SU(N)** at symbolic N (e.g. diquarks in the antitriplet and sextet channels), and generator contractions in any index order.
+>
+> See [src/CHANGELOG](src/CHANGELOG) for details. Credit for FormTracer goes to its original authors below; please cite their paper.
+
 FormTracer is a high-performance, general purpose, easy-to-use Mathematica tracing package which uses [FORM](https://github.com/vermaseren/form). It supports arbitrary space
 and spinor dimensions as well as an arbitrary number of simple compact Lie groups. While keeping the usability of the Mathematica interface, it
 relies on the efficiency of FORM. An additional performance gain is achieved by a decomposition algorithm that avoids redundant traces in the product
@@ -27,6 +35,8 @@ FormTracer is maintained by [selected members](https://github.com/orgs/FormTrace
   * partial traces involving open indices
   * creation of optimized output (including bracketing) using FORM’s optimization algorithm for further numerical processing in C/C++/Fortran
   * user-defined combined Lorentz tensors and corresponding identities, e.g., (transverse and longitudinal) projectors and their orthogonality relations, for speedup
+  * the charge conjugation matrix and Dirac matrices contracted in any index order (transposed Dirac matrices)
+  * the antisymmetric and symmetric generators of SU(N) at symbolic N (e.g. diquarks in the antitriplet and sextet channels) and generator contractions in any index order
 
 ## Build instructions
 FormTracer is equipped with a fully automated installation script in Mathematica, which is executed by evaluating<br>
