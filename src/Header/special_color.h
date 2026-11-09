@@ -16,6 +16,16 @@ Symbols scOlx,scOlx1,scOlx2;
 
 * for SU3fundexplicit
 CFunction scOld(symmetric);
+
+* for SUNfundAsym: antisymmetric (TA) and symmetric (TS) generators and the
+* dimensions NAS = NR(NR-1)/2 and NSS = (NR-1)(NR+2)/2 of their label spaces
+CFunction TA, TS;
+Symbols NAS, NSS, scOlasym;
+Dimension NAS;
+AutoDeclare Index scOlA;
+Dimension NSS;
+AutoDeclare Index scOlS;
+Dimension NR;
  
 
 #procedure SUNfund
@@ -362,4 +372,78 @@ id T(scOli1?,scOli2?)=d_(scOli1,scOli2);
 Contract;
 EndRepeat;
 .sort
+#endprocedure
+
+
+********************************************************************************
+* SUNfundAsym: SU(NR) fundamental traces at symbolic NR, extended by
+*   - the NR(NR-1)/2 antisymmetric generators TA(i,j,A), TA^T = -TA
+*   - the (NR-1)(NR+2)/2 symmetric generators TS(i,j,S), TS^T = +TS
+*     (together they form a basis of the generators: T^a T^a = TA^A TA^A + TS^S TS^S,
+*      tr(TA^A TA^B) = I2R d^AB, tr(TS^S TS^R) = I2R d^SR; for SU(3) the TA are
+*      T^2, T^5, T^7)
+*   - generator contractions with arbitrarily ordered fundamental indices,
+*     e.g. the transposed contraction T^a_ij T^b_kj
+* The labels A (S) are indices of dimension NAS (NSS); deltas of the label spaces
+* are d_'s, so their chains, squares and traces are done by FORM itself.
+* Terms without TA/TS and without transposed generator contractions are passed
+* unchanged to SUNfund.
+* Based on asym_color.h (diquark colour algebra for generic Nc).
+* dimension has to be set to NR
+********************************************************************************
+#procedure SUNfundAsym
+
+* flag the terms that need the general reduction
+if ( count(TA,1) || count(TS,1)
+     || match(T(scOli1?,scOli2?!fixed_,scOlj1?)*T(scOli3?,scOli2?!fixed_,scOlj2?))
+     || match(T(scOli2?!fixed_,scOli1?,scOlj1?)*T(scOli2?!fixed_,scOli3?,scOlj2?)) ) multiply scOlasym;
+
+* canonical order of the fundamental indices: TA^T = -TA, TS^T = TS
+antisymmetrize TA 1,2;
+symmetrize TS 1,2;
+
+* express f via generators (only in flagged terms)
+repeat;
+if ( count(scOlasym,1) );
+  id,once,f(scOlj1?,scOlj2?,scOlj3?) = 1/I2R/i_*T(scOli1,scOli2,scOlj1)*T(scOli2,scOli3,scOlj2)*T(scOli3,scOli1,scOlj3)
+			-1/I2R/i_*T(scOli1,scOli2,scOlj3)*T(scOli2,scOli3,scOlj2)*T(scOli3,scOli1,scOlj1);
+  sum scOli1,scOli2,scOli3;
+endif;
+endrepeat;
+
+* eliminate every contracted adjoint index and label, whatever the order of the
+* fundamental indices
+repeat;
+if ( count(scOlasym,1) );
+* completeness of the antisymmetric and symmetric generators
+  id TA(scOli1?,scOli2?,scOlA1?!fixed_)*TA(scOli3?,scOli4?,scOlA1?!fixed_) =
+        -I2R/2*( d_(scOli1,scOli3)*d_(scOli2,scOli4) - d_(scOli1,scOli4)*d_(scOli2,scOli3) );
+  id TS(scOli1?,scOli2?,scOlS1?!fixed_)*TS(scOli3?,scOli4?,scOlS1?!fixed_) =
+         I2R/2*( d_(scOli1,scOli3)*d_(scOli2,scOli4) + d_(scOli1,scOli4)*d_(scOli2,scOli3) )
+       - I2R/NR*d_(scOli1,scOli2)*d_(scOli3,scOli4);
+* closed two-generator loops with two different labels
+  id TA(scOli1?,scOli2?,scOlA1?)*TA(scOli2?,scOli1?,scOlA2?) =  I2R*d_(scOlA1,scOlA2);
+  id TA(scOli1?,scOli2?,scOlA1?)*TA(scOli1?,scOli2?,scOlA2?) = -I2R*d_(scOlA1,scOlA2);
+  id TS(scOli1?,scOli2?,scOlS1?)*TS(scOli2?,scOli1?,scOlS2?) =  I2R*d_(scOlS1,scOlS2);
+  id TS(scOli1?,scOli2?,scOlS1?)*TS(scOli1?,scOli2?,scOlS2?) =  I2R*d_(scOlS1,scOlS2);
+  id T(scOli1?,scOli2?,scOlj1?)*T(scOli2?,scOli1?,scOlj2?) = I2R*d_(scOlj1,scOlj2);
+* Fierz identity for a contracted adjoint index (free positions)
+  id T(scOli1?,scOli2?,scOlj1?!fixed_)*T(scOli3?,scOli4?,scOlj1?!fixed_) =
+         I2R*( d_(scOli1,scOli4)*d_(scOli3,scOli2) - d_(scOli1,scOli2)*d_(scOli3,scOli4)/NR );
+* traceless generators
+  id T(scOli1?,scOli1?,scOlj1?) = 0;
+  id TA(scOli1?,scOli1?,scOlA1?) = 0;
+  id TS(scOli1?,scOli1?,scOlS1?) = 0;
+endif;
+antisymmetrize TA 1,2;
+symmetrize TS 1,2;
+endrepeat;
+antisymmetrize TA 1,2;
+symmetrize TS 1,2;
+id scOlasym = 1;
+.sort
+
+* everything else (chains with open adjoint indices, unflagged terms)
+#call SUNfund
+
 #endprocedure

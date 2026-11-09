@@ -15,6 +15,18 @@
 - New: Dirac traces whose value depends on the representation of the Dirac algebra (e.g. Tr[gamma[mu].gamma[nu]^T]
   or a trace with a single C) abort with the message FormTrace::noncovariant, which displays the offending trace.
 - The Dirac chain construction now lives in the FORM header Header/diracchain.h.
+- New: SUNfund supports the N(N-1)/2 antisymmetric generators TA (TA^T = -TA) and the (N-1)(N+2)/2 symmetric
+  generators TS (TS^T = TS) of SU(N) at symbolic N (e.g. diquarks: antitriplet and sextet channels), declared in the
+  optional slots 9 to 12 of the group definition,
+  {SUNfund,{color,Nc},dA[a,b],fc[a,b,c],dF[i,j],Tc[a,i,j],Null,Null,TAc[A,i,j],TSc[S,i,j],dAS[A,B],dSS[S,R]}.
+  The labels A, S are a new index type of the group (dimension N(N-1)/2 and (N-1)(N+2)/2), so open-index checks,
+  deltas and partial traces work as for all other indices. Normalisation: tr(TA^A TA^B) = I2R delta^AB,
+  tr(TS^S TS^R) = I2R delta^SR, sum_a T^a T^a = sum_A TA^A TA^A + sum_S TS^S TS^S; for SU(3) the TA are T^2, T^5, T^7.
+  This replaces the need for SU3fundexplicit in diquark computations at N=3.
+- New: SUNfund evaluates generator contractions with arbitrarily ordered (e.g. transposed) fundamental indices,
+  e.g. Tc[a,i,j]Tc[a,k,j]. Previously such contractions were not reduced.
+- Bugfix: With PartialTrace[True] and no fundamental indices in the expression, the empty fundamental index set
+  could misidentify other deltas as fundamental ones.
 
 
 (***********) FormTracer Version 2.3.8 (***********)

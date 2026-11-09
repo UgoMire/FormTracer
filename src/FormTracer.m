@@ -158,13 +158,19 @@ DefineGroupTensors[{
 {GenericGroup,testing,generalAdjDelta[a,b],generalStructureConstant[a,b,c],generalDeltaFund[i,j],generalGenerator[a,i,j]}
 }]
 
+For SUNfund, the antisymmetric and symmetric SU(N) generators and the deltas of their label spaces can be added in slots 9 to 12 (see ?SUNfund):
+{SUNfund,{color,Nc},dA[a,b],fc[a,b,c],dF[i,j],Tc[a,i,j],Null,Null,TAc[A,i,j],TSc[S,i,j],dAS[A,B],dSS[S,R]}
+
 Evaluate ShowGroupTemplates[] to show available group templates.
 Evaluate ShowGroupConstants[] to check your settings.
 ";
 
 GenericGroup::usage="GenericGroup represents a generic simple compact Lie group which is traced with the generic color trace (to supplied as group template argument in DefineGroupTensors).";
 
-SUNfund::usage="SUNfund represents the fundamental SU(N) group (to supplied as group template argument in DefineGroupTensors).";
+SUNfund::usage="SUNfund represents the fundamental SU(N) group (to supplied as group template argument in DefineGroupTensors).
+SUNfund optionally supports the N(N-1)/2 antisymmetric generators TA (TA^T=-TA) and the (N-1)(N+2)/2 symmetric generators TS (TS^T=TS) of SU(N) for symbolic N, e.g. for diquarks (antitriplet and sextet channels of SU(3)), as well as generator contractions with arbitrarily ordered (e.g. transposed) fundamental indices. Together TA and TS form a basis of the generators, sum_a T^a_ij T^a_kl = sum_A TA^A_ij TA^A_kl + sum_S TS^S_ij TS^S_kl, with tr(TA^A TA^B) = I2R delta^AB and tr(TS^S TS^R) = I2R delta^SR (for SU(3) the TA are T^2, T^5, T^7). They are declared in slots 9 to 12 of the group definition: {SUNfund,group,deltaAdj,structureF,deltaFund,generatorT,epsilonAdj,epsilonFund,generatorTA,generatorTS,deltaAS,deltaSS}, e.g.
+DefineGroupTensors[{{SUNfund,{color,Nc},dA[a,b],fc[a,b,c],dF[i,j],Tc[a,i,j],Null,Null,TAc[A,i,j],TSc[S,i,j],dAS[A,B],dSS[S,R]}}]
+The labels A (S) are indices of their own index type with dimension N(N-1)/2 ((N-1)(N+2)/2).";
 
 SONfund::usage="SONfund represents the fundamental SO(N) group (to supplied as group template argument in DefineGroupTensors).";
 
@@ -179,6 +185,8 @@ DefineGroupTensors::badarg="Wrong syntax. Type ?DefineGroupTensors for help!\nPl
 DefineGroupTensors::templatemissing="The group you want to specify is not known to the FormTracer. Use ShowGroupTemplates[] to see which groups are available.";
 
 DefineGroupTensors::duplicategroupnames="Duplicate group names encountered. Please use unique group names!";
+
+DefineGroupTensors::asymslots="Antisymmetric and symmetric generators (slots 9 to 12 of a group definition) are only supported for the group template SUNfund.";
 
 ClearGroupTensors::usage="ClearGroupTensors[] clears all groups.";
 
@@ -748,6 +756,8 @@ spiDummyPrefix="spiDummy";
 tempPartialTraceDummy=FormTracer`Private`TempDummy;
 adjGroupDummyPrefix="adj";
 fundGroupDummyPrefix="fund";
+asGroupDummyPrefix="as";
+ssGroupDummyPrefix="ss";
 lorDummyPrefixFORM="lorFORMDummy";
 spiDummyPrefixFORM="spiFORMDummy";
 
@@ -788,7 +798,7 @@ formCFunctionAutoDeclareList=formCFunctionAutoDeclareListBasic;
 
 
 (* ::Input::Initialization:: *)
-getGroupTensors[group_]:={FTxdeltaAdj[group,_,_],FTxdeltaFund[group,_,_],FTxF[group,_,_,_],FTxT[group,_,_,_],FTxepsAdj[group,__],FTxepsFund[group,__]};
+getGroupTensors[group_]:={FTxdeltaAdj[group,_,_],FTxdeltaFund[group,_,_],FTxF[group,_,_,_],FTxT[group,_,_,_],FTxepsAdj[group,__],FTxepsFund[group,__],FTxTA[group,_,_,_],FTxTS[group,_,_,_],FTxdeltaAS[group,_,_],FTxdeltaSS[group,_,_]};
 
 adjIndicesFromExprRules[group_]:={
 FTxdeltaAdj[group,x_,y_]:>{x,y},
@@ -800,7 +810,20 @@ FTxepsAdj[group,x__]:>{x}
 fundIndicesFromExprRules[group_]:={
 FTxdeltaFund[group,x_,y_]:>{x,y},
 FTxT[group,x_,y_,z_]:>{y,z},
+FTxTA[group,x_,y_,z_]:>{y,z},
+FTxTS[group,x_,y_,z_]:>{y,z},
 FTxepsFund[group,x__]:>{x}
+};
+
+(*labels of the antisymmetric (AS) and symmetric (SS) generators of SU(N)*)
+asIndicesFromExprRules[group_]:={
+FTxdeltaAS[group,x_,y_]:>{x,y},
+FTxTA[group,x_,y_,z_]:>{x}
+};
+
+ssIndicesFromExprRules[group_]:={
+FTxdeltaSS[group,x_,y_]:>{x,y},
+FTxTS[group,x_,y_,z_]:>{x}
 };
 
 (*the order is relevant in removeSquaredTensorsRulesT0*)
@@ -818,7 +841,7 @@ formColorPackageGroupTemplates={
 (* first argument: algorithm; second: header; third: 1 requires dimension NA, 2 requires dimension NR, 0 nothing*)
 formColorPackageTracingAlgorithms={
 {"#call color\n#call adjoint","color.h",1},
-{"#call SUNfund","special_color.h",2},
+{"#call SUNfundAsym","special_color.h",2},
 {"#call SONfund","special_color.h",2},
 {"#call SPNfund","special_color.h",2},
 {"#call SU2fundexplicit","special_color.h",1},
@@ -836,7 +859,7 @@ prefixColorPackagegrpvecsym="grpvecx";
 (*maximal order up to which grpvecsyms are replaced*)
 grpvecsymreplorder=2;
 
-forbiddenFormVars=Join[{"f","T","cA","cR","NA","NR","I2R"},formColorPackageGenericD];
+forbiddenFormVars=Join[{"f","T","TA","TS","cA","cR","NA","NR","NAS","NSS","I2R"},formColorPackageGenericD];
 
 prefixListLorentzDirac={"mom","lor","spi"};
 prefixListIndices=prefixListLorentzDirac;
@@ -1034,7 +1057,7 @@ enableFiniteT[vectorspatial=!=Null||scalarProductspatial=!=Null];
 
 
 (* ::Input::Initialization:: *)
-getGroupTensorRules[{type_,group_,deltaAdj_,structureF_,deltaFund_:Null,generatorT_:Null,epsilonAdj_:Null,epsilonFund_:Null}]:=Module[
+getGroupTensorRules[{type_,group_,deltaAdj_,structureF_,deltaFund_:Null,generatorT_:Null,epsilonAdj_:Null,epsilonFund_:Null,generatorTA_:Null,generatorTS_:Null,deltaAS_:Null,deltaSS_:Null}]:=Module[
 {groupName=If[Head[group]===List,First[group],group],inputRules={},outputRules={},outputRulesTraced={},outputRulesPartiallyTraced={},tmpExpr,tmpVars},
 (*delta adj replacement rule*)
 {tmpExpr,tmpVars}=extractExprAndVars[deltaAdj,2];
@@ -1059,15 +1082,26 @@ AppendTo[inputRules,barrepl[tmpExpr,tmpVars]:>Evaluate[FormTracer`Private`FTxT[g
 AppendTo[outputRules,barrepl[FormTracer`Private`FTxT[groupName,tmpVars[[1]],tmpVars[[2]],tmpVars[[3]]],tmpVars]:>Evaluate[tmpExpr]];
 AppendTo[outputRulesPartiallyTraced,barrepl[Global`FTxT[groupName,tmpVars[[1]],tmpVars[[2]],tmpVars[[3]]],tmpVars]:>Evaluate[tmpExpr]];
 (*optional epsilon adj replacement rule*)
-If[epsilonAdj===Null,Return[{inputRules,outputRules,outputRulesTraced,outputRulesPartiallyTraced}]];
+If[epsilonAdj=!=Null,
 AppendTo[inputRules,Head[epsilonAdj][a__]:>FormTracer`Private`FTxepsAdj[groupName,a]];
 AppendTo[outputRules,FormTracer`Private`FTxepsAdj[groupName,a__]:>Head[epsilonAdj][a]];
 AppendTo[outputRulesPartiallyTraced,Global`FTxepsAdj[groupName,a__]:>Head[epsilonAdj][a]];
+];
 (*optional epsilon fund replacement rule*)
-If[epsilonFund===Null,Return[{inputRules,outputRules,outputRulesTraced,outputRulesPartiallyTraced}]];
+If[epsilonFund=!=Null,
 AppendTo[inputRules,Head[epsilonFund][a__]:>FormTracer`Private`FTxepsFund[groupName,a]];
 AppendTo[outputRules,FormTracer`Private`FTxepsFund[groupName,a__]:>Head[epsilonFund][a]];
 AppendTo[outputRulesPartiallyTraced,Global`FTxepsFund[groupName,a__]:>Head[epsilonFund][a]];
+];
+(*optional antisymmetric and symmetric generators (SUNfund only) and the deltas of their label spaces*)
+Do[If[tensor[[1]]=!=Null,
+{tmpExpr,tmpVars}=extractExprAndVars[tensor[[1]],tensor[[2]]];
+With[{head=tensor[[3]],vars=tmpVars,expr=tmpExpr},
+AppendTo[inputRules,barrepl[expr,vars]:>Evaluate[head[groupName,Sequence@@vars]]];
+AppendTo[outputRules,barrepl[head[groupName,Sequence@@vars],vars]:>Evaluate[expr]];
+AppendTo[outputRulesPartiallyTraced,barrepl[ToExpression["Global`"<>SymbolName[head]][groupName,Sequence@@vars],vars]:>Evaluate[expr]];
+];
+],{tensor,{{generatorTA,3,FormTracer`Private`FTxTA},{generatorTS,3,FormTracer`Private`FTxTS},{deltaAS,2,FormTracer`Private`FTxdeltaAS},{deltaSS,2,FormTracer`Private`FTxdeltaSS}}}];
 Return[{inputRules,outputRules,outputRulesTraced,outputRulesPartiallyTraced}];
 ];
 
@@ -1096,7 +1130,8 @@ Return[groupTemplate//.groupNameRules];
 
 getGroupTracingAlgorithms[group_List]:=formColorPackageTracingAlgorithms[[FirstCase[formColorPackageGroupTemplates,{First[group],defValues_,algorithm_}:>algorithm]]];
 
-getFormPostGroupRenamingRules[groupConstants_List,shortGroupName_String,groupType_]:="Multiply replace_("~~stringList[toGenericFormString/@Riffle[formColorPackageExtVars,groupConstants]]~~");
+getFormPostGroupRenamingRules[groupConstants_List,shortGroupName_String,groupType_]:=If[groupType===SUNfund,"Multiply replace_(NAS,NR*(NR-1)/2,NSS,(NR-1)*(NR+2)/2);
+",""]~~"Multiply replace_("~~stringList[toGenericFormString/@Riffle[formColorPackageExtVars,groupConstants]]~~");
 "~~If[FirstCase[formColorPackageGroupTemplates,{groupType,defValues_,algorithm_}:>algorithm]==1,"*replace possible color package remnants
 #do i = 1, "~~ToString[grpvecsymreplorder]~~"
 	Multiply replace_(cOlpR`i',"~~prefixColorPackagegrpvecsym~~shortGroupName~~"R`i',cOlpA`i',"~~prefixColorPackagegrpvecsym~~shortGroupName~~"A`i');
@@ -1114,8 +1149,11 @@ id FTxeps(a"~~shortGroupName~~"1?a"~~shortGroupName~~"Indices,?a"~~shortGroupNam
 id FTxeps(f"~~shortGroupName~~"1?f"~~shortGroupName~~"Indices,?f"~~shortGroupName~~"2)=FTxepsFund("~~groupName~~",f"~~shortGroupName~~"1,?f"~~shortGroupName~~"2);
 id T(f"~~shortGroupName~~"1?,f"~~shortGroupName~~"2?,a"~~shortGroupName~~"1?)=FTxT("~~groupName~~",a"~~shortGroupName~~"1,f"~~shortGroupName~~"1,f"~~shortGroupName~~"2);
 id f(a"~~shortGroupName~~"1?,a"~~shortGroupName~~"2?,a"~~shortGroupName~~"3?)=FTxF("~~groupName~~",a"~~shortGroupName~~"1,a"~~shortGroupName~~"2,a"~~shortGroupName~~"3);
+id d_(x"~~shortGroupName~~"1?x"~~shortGroupName~~"Indices,x"~~shortGroupName~~"2?)=FTxdeltaAS("~~groupName~~",x"~~shortGroupName~~"1,x"~~shortGroupName~~"2);
+id d_(y"~~shortGroupName~~"1?y"~~shortGroupName~~"Indices,y"~~shortGroupName~~"2?)=FTxdeltaSS("~~groupName~~",y"~~shortGroupName~~"1,y"~~shortGroupName~~"2);
+id TA(f"~~shortGroupName~~"1?,f"~~shortGroupName~~"2?,x"~~shortGroupName~~"1?)=FTxTA("~~groupName~~",x"~~shortGroupName~~"1,f"~~shortGroupName~~"1,f"~~shortGroupName~~"2);
+id TS(f"~~shortGroupName~~"1?,f"~~shortGroupName~~"2?,y"~~shortGroupName~~"1?)=FTxTS("~~groupName~~",y"~~shortGroupName~~"1,f"~~shortGroupName~~"1,f"~~shortGroupName~~"2);
 ";
-
 
 
 (* ::Input::Initialization:: *)
@@ -1146,6 +1184,7 @@ DefineGroupTensors[groups_List/;Head[First[groups]]==List]:=Module[{replacementR
 (*sanity check before anything is changed*)
 If[Not[DuplicateFreeQ[getGroupNames[groups]]],Message[DefineGroupTensors::duplicategroupnames];Abort[];];
 If[AnyTrue[groups[[All,1]],Not@MemberQ[formColorPackageGroupTemplates[[All,1]], #]&],Message[DefineGroupTensors::templatemissing];Abort[];];
+If[AnyTrue[groups,Length[#]>8&&(First[#]=!=SUNfund||Length[#]>12)&&AnyTrue[Drop[#,8],#=!=Null&]&],Message[DefineGroupTensors::asymslots];Abort[];];
 
 (* Initializing group and group constant names *)
 Quiet[Check[
@@ -1156,7 +1195,7 @@ groupConstantsTable=Table[getGroupConstantNames[groups[[i]],shortGroupNames[[i]]
 dimGroupVars=Variables[groupConstantsTable];
 generateDimensionReplRules[];
 groupTracingAlgorithms=getGroupTracingAlgorithms/@groups;
-prefixListIndices=Join[prefixListLorentzDirac,Map[StringJoin["a",#]&,(ToString/@shortGroupNames)],Map[StringJoin["f",#]&,(ToString/@shortGroupNames)]];
+prefixListIndices=Join[prefixListLorentzDirac,Map[StringJoin["a",#]&,(ToString/@shortGroupNames)],Map[StringJoin["f",#]&,(ToString/@shortGroupNames)],Map[StringJoin["x",#]&,(ToString/@shortGroupNames)],Map[StringJoin["y",#]&,(ToString/@shortGroupNames)]];
 formPreGroupTraceIdentities=Table[getFormPreGroupTraceIdentities[ToString@shortGroupNames[[iGroup]],groupTypes[[iGroup]]],{iGroup,Length@groupNames}];
 formPostGroupRenamingRules=Table[getFormPostGroupRenamingRules[groupConstantsTable[[iGroup]],ToString@shortGroupNames[[iGroup]],groupTypes[[iGroup]]],{iGroup,Length@groupNames}];
 formGenericDReplacementRules=getFormGenericDReplacementRules/@groupTypes;
@@ -1367,8 +1406,15 @@ FTxdeltaFund[group_,a_,a_]:>If[IntegerQ[a],1,groupConstantsTable[[First[FirstPos
 FTxdeltaFund[group_,a_,b_]^2/;a=!=b:>If[IntegerQ[a]&&IntegerQ[b],0,If[IntegerQ[a]||IntegerQ[b],1,groupConstantsTable[[First[FirstPosition[groupNames,group]],1]]]],
 FTxepsAdj[group_,a_,b_,cc___]^2:>-FTxepsAdj[group,b,a,cc]*FTxepsAdj[group,a,b,cc],
 FTxepsFund[group_,a_,b_,cc___]^2:>-FTxepsFund[group,b,a,cc]*FTxepsFund[group,a,b,cc],
-FTxF[group_,a_,b_,c_]^2:>-FTxF[group,b,a,c]*FTxF[group,a,b,c]
+FTxF[group_,a_,b_,c_]^2:>-FTxF[group,b,a,c]*FTxF[group,a,b,c],
+FTxdeltaAS[group_,a_,a_]:>If[IntegerQ[a],1,asDimension[group]],
+FTxdeltaAS[group_,a_,b_]^2/;a=!=b:>If[IntegerQ[a]&&IntegerQ[b],0,If[IntegerQ[a]||IntegerQ[b],1,asDimension[group]]],
+FTxdeltaSS[group_,a_,a_]:>If[IntegerQ[a],1,ssDimension[group]],
+FTxdeltaSS[group_,a_,b_]^2/;a=!=b:>If[IntegerQ[a]&&IntegerQ[b],0,If[IntegerQ[a]||IntegerQ[b],1,ssDimension[group]]]
 };
+(*dimensions of the label spaces of the antisymmetric and symmetric SU(N) generators*)
+asDimension[group_]:=With[{n=groupConstantsTable[[First[FirstPosition[groupNames,group]],1]]},n*(n-1)/2];
+ssDimension[group_]:=With[{n=groupConstantsTable[[First[FirstPosition[groupNames,group]],1]]},(n-1)*(n+2)/2];
 removeSquaredTensorsRulesT={
 FTxvecs[p_,mu_]^2/;Not[IntegerQ[mu]]:>FTxsps[p,p]
 };
@@ -1451,6 +1497,8 @@ Return[finiteTenabled];
 getDummy[group_,tempDummy_,typePrefix_]:=ToExpression[typePrefix<>ToString[group]<>"Dummy"<>ToString[tempDummy]]
 getAdjDummy[group_,tempDummy_]:=getDummy[group,tempDummy,adjGroupDummyPrefix]
 getFundDummy[group_,tempDummy_]:=getDummy[group,tempDummy,fundGroupDummyPrefix]
+getASDummy[group_,tempDummy_]:=getDummy[group,tempDummy,asGroupDummyPrefix]
+getSSDummy[group_,tempDummy_]:=getDummy[group,tempDummy,ssGroupDummyPrefix]
 
 getLorDummy[tempDummy_]:=ToExpression[lorDummyPrefixFORM<>ToString[tempDummy]]
 getSpiDummy[tempDummy_]:=ToExpression[spiDummyPrefixFORM<>ToString[tempDummy]]
@@ -1469,7 +1517,18 @@ Global`FTxT[group_,a_,tempPartialTraceDummy[i_],j_]:>Global`FTxT[group,a,getFund
 Global`FTxT[group_,a_,i_,tempPartialTraceDummy[j_]]:>Global`FTxT[group,a,i,getFundDummy[group,j]],
 
 Global`FTxepsAdj[group_,a___,tempPartialTraceDummy[b_],c___]:>Global`FTxepsAdj[group,a,getAdjDummy[group,b],c],
-Global`FTxepsFund[group_,i___,tempPartialTraceDummy[j_],k___]:>Global`FTxepsFund[group,i,getFundDummy[group,j],k]
+Global`FTxepsFund[group_,i___,tempPartialTraceDummy[j_],k___]:>Global`FTxepsFund[group,i,getFundDummy[group,j],k],
+
+Global`FTxTA[group_,tempPartialTraceDummy[a_],i_,j_]:>Global`FTxTA[group,getASDummy[group,a],i,j],
+Global`FTxTA[group_,a_,tempPartialTraceDummy[i_],j_]:>Global`FTxTA[group,a,getFundDummy[group,i],j],
+Global`FTxTA[group_,a_,i_,tempPartialTraceDummy[j_]]:>Global`FTxTA[group,a,i,getFundDummy[group,j]],
+Global`FTxTS[group_,tempPartialTraceDummy[a_],i_,j_]:>Global`FTxTS[group,getSSDummy[group,a],i,j],
+Global`FTxTS[group_,a_,tempPartialTraceDummy[i_],j_]:>Global`FTxTS[group,a,getFundDummy[group,i],j],
+Global`FTxTS[group_,a_,i_,tempPartialTraceDummy[j_]]:>Global`FTxTS[group,a,i,getFundDummy[group,j]],
+Global`FTxdeltaAS[group_,tempPartialTraceDummy[a_],b_]:>Global`FTxdeltaAS[group,getASDummy[group,a],b],
+Global`FTxdeltaAS[group_,a_,tempPartialTraceDummy[b_]]:>Global`FTxdeltaAS[group,a,getASDummy[group,b]],
+Global`FTxdeltaSS[group_,tempPartialTraceDummy[a_],b_]:>Global`FTxdeltaSS[group,getSSDummy[group,a],b],
+Global`FTxdeltaSS[group_,a_,tempPartialTraceDummy[b_]]:>Global`FTxdeltaSS[group,a,getSSDummy[group,b]]
 };
 
 lorentzDummyReplacementFORM={
@@ -1512,6 +1571,8 @@ variablesFromExprRules[expr_,rules_List]:=Select[Map[Cases[{expr},#,Infinity]&,r
 (* group indices from expr *)
 getFundGroupIndices[expr_,group_]:=variablesFromExprRules[expr,fundIndicesFromExprRules[group]];
 getAdjGroupIndices[expr_,group_]:=variablesFromExprRules[expr,adjIndicesFromExprRules[group]];
+getASGroupIndices[expr_,group_]:=variablesFromExprRules[expr,asIndicesFromExprRules[group]];
+getSSGroupIndices[expr_,group_]:=variablesFromExprRules[expr,ssIndicesFromExprRules[group]];
 (* Lorentz indices from expr *)
 lorentzFromExpr[expr_]:=variablesFromExprRules[expr,lorentzFromExprRules];
 (* Dirac indices from expr *)
@@ -1542,12 +1603,18 @@ getOpenFundGroupIndices[expr_,group_]:=getOpenIndices[expr,fundIndicesFromExprRu
 getOpenFundGroupIndices[expr_List,group_]:=Map[getOpenFundGroupIndices[#,group]&,expr];
 getOpenAdjGroupIndices[expr_,group_]:=getOpenIndices[expr,adjIndicesFromExprRules[group]];
 getOpenAdjGroupIndices[expr_List,group_]:=Map[getOpenAdjGroupIndices[#,group]&,expr];
+getOpenASGroupIndices[expr_,group_]:=getOpenIndices[expr,asIndicesFromExprRules[group]];
+getOpenASGroupIndices[expr_List,group_]:=Map[getOpenASGroupIndices[#,group]&,expr];
+getOpenSSGroupIndices[expr_,group_]:=getOpenIndices[expr,ssIndicesFromExprRules[group]];
+getOpenSSGroupIndices[expr_List,group_]:=Map[getOpenSSGroupIndices[#,group]&,expr];
 
 getOpenIndices[expr_List]:=getOpenIndices/@expr;
-getOpenIndices[expr_]:=Module[{openFundIndices,openAdjIndices},
+getOpenIndices[expr_]:=Module[{openFundIndices,openAdjIndices,openASIndices,openSSIndices},
 openFundIndices=Flatten[Map[getOpenFundGroupIndices[expr,#]&,groupNames]];
 openAdjIndices=Flatten[Map[getOpenAdjGroupIndices[expr,#]&,groupNames]];
-Return[Join[getOpenLorentzIndices[expr],getOpenDiracIndices[expr],openFundIndices,openAdjIndices]];
+openASIndices=Flatten[Map[getOpenASGroupIndices[expr,#]&,groupNames]];
+openSSIndices=Flatten[Map[getOpenSSGroupIndices[expr,#]&,groupNames]];
+Return[Join[getOpenLorentzIndices[expr],getOpenDiracIndices[expr],openFundIndices,openAdjIndices,openASIndices,openSSIndices]];
 ];
 
 
@@ -1556,13 +1623,17 @@ getClosedDiracIndices[expr_]:=Complement[spinorFromExpr[expr],getOpenDiracIndice
 
 getClosedFundGroupIndices[expr_,group_]:=Complement[getFundGroupIndices[expr,group],getOpenFundGroupIndices[expr,group]];
 getClosedAdjGroupIndices[expr_,group_]:=Complement[getAdjGroupIndices[expr,group],getOpenAdjGroupIndices[expr,group]];
+getClosedASGroupIndices[expr_,group_]:=Complement[getASGroupIndices[expr,group],getOpenASGroupIndices[expr,group]];
+getClosedSSGroupIndices[expr_,group_]:=Complement[getSSGroupIndices[expr,group],getOpenSSGroupIndices[expr,group]];
 
 
 getClosedIndices[expr_List]:=getClosedIndices/@expr;
-getClosedIndices[expr_]:=Module[{closedFundIndices,closedAdjIndices},
+getClosedIndices[expr_]:=Module[{closedFundIndices,closedAdjIndices,closedASIndices,closedSSIndices},
 closedFundIndices=Flatten[Map[getClosedFundGroupIndices[expr,#]&,groupNames]];
 closedAdjIndices=Flatten[Map[getClosedAdjGroupIndices[expr,#]&,groupNames]];
-Return[Join[getClosedLorentzIndices[expr],getClosedDiracIndices[expr],closedFundIndices,closedAdjIndices]];
+closedASIndices=Flatten[Map[getClosedASGroupIndices[expr,#]&,groupNames]];
+closedSSIndices=Flatten[Map[getClosedSSGroupIndices[expr,#]&,groupNames]];
+Return[Join[getClosedLorentzIndices[expr],getClosedDiracIndices[expr],closedFundIndices,closedAdjIndices,closedASIndices,closedSSIndices]];
 ];
 
 
@@ -1634,13 +1705,17 @@ checkLorentzTensorSums[expr_]:=checkAllSums[expr,getOpenLorentzIndices];
 checkDiracTensorSums[expr_]:=checkAllSums[expr,getOpenDiracIndices];
 checkAdjGroupTensorSums[expr_,group_]:=checkAllSums[expr,getOpenAdjGroupIndices[#,group]&];
 checkFundGroupTensorSums[expr_,group_]:=checkAllSums[expr,getOpenFundGroupIndices[#,group]&];
+checkASGroupTensorSums[expr_,group_]:=checkAllSums[expr,getOpenASGroupIndices[#,group]&];
+checkSSGroupTensorSums[expr_,group_]:=checkAllSums[expr,getOpenSSGroupIndices[#,group]&];
 
-checkAllTensorSums[expr_]:=Module[{lorentzCheck,diracCheck,fundGroupCheck,adjGroupCheck},
+checkAllTensorSums[expr_]:=Module[{lorentzCheck,diracCheck,fundGroupCheck,adjGroupCheck,asGroupCheck,ssGroupCheck},
 lorentzCheck=checkLorentzTensorSums[expr];
 diracCheck=checkDiracTensorSums[expr];
 fundGroupCheck=And@@Map[checkFundGroupTensorSums[expr,#]&,groupNames];
 adjGroupCheck=And@@Map[checkAdjGroupTensorSums[expr,#]&,groupNames];
-Return[lorentzCheck&&diracCheck&&fundGroupCheck&&adjGroupCheck];
+asGroupCheck=And@@Map[checkASGroupTensorSums[expr,#]&,groupNames];
+ssGroupCheck=And@@Map[checkSSGroupTensorSums[expr,#]&,groupNames];
+Return[lorentzCheck&&diracCheck&&fundGroupCheck&&adjGroupCheck&&asGroupCheck&&ssGroupCheck];
 ];
 
 convertInputWithoutSumCheck[expr_]:=Module[{tmpDebuggingMode,tmpCheckTensorSums,convertedExpr},
@@ -1815,7 +1890,11 @@ Shortest["FTxepsFund["~~group__~~", "~~x__~~"]"]:>"e_("~~x~~")",
 Shortest["FTxdeltaAdj["~~group__~~", "~~x__~~", "~~y__~~"]"]:>"d_("~~x~~","~~y~~")",
 Shortest["FTxdeltaFund["~~group__~~", "~~x__~~", "~~y__~~"]"]:>"d_("~~x~~","~~y~~")",
 Shortest["FTxF["~~group__~~", "~~x__~~", "~~y__~~", "~~z__~~"]"]:>"f("~~x~~","~~y~~","~~z~~")",
-Shortest["FTxT["~~group__~~", "~~x__~~", "~~y__~~", "~~z__~~"]"]:>"T("~~y~~","~~z~~","~~x~~")"
+Shortest["FTxT["~~group__~~", "~~x__~~", "~~y__~~", "~~z__~~"]"]:>"T("~~y~~","~~z~~","~~x~~")",
+Shortest["FTxTA["~~group__~~", "~~x__~~", "~~y__~~", "~~z__~~"]"]:>"TA("~~y~~","~~z~~","~~x~~")",
+Shortest["FTxTS["~~group__~~", "~~x__~~", "~~y__~~", "~~z__~~"]"]:>"TS("~~y~~","~~z~~","~~x~~")",
+Shortest["FTxdeltaAS["~~group__~~", "~~x__~~", "~~y__~~"]"]:>"d_("~~x~~","~~y~~")",
+Shortest["FTxdeltaSS["~~group__~~", "~~x__~~", "~~y__~~"]"]:>"d_("~~x~~","~~y~~")"
 }];
 replaceLorentzTensors[expr_]:=StringReplace[expr,{
 Shortest["FTxgamma["~~x__~~", "~~y__~~", "~~z__~~"]"]:>"gamma("~~x~~","~~y~~","~~z~~")",
@@ -1983,7 +2062,7 @@ getAllIndices[expr_]:=Module[{momenta,momentaall,momentams},
 momenta=DeleteDuplicates[momentumFromExpr[expr]];
 momentaall=Union[momenta,Select[ToExpression[Flatten[Map[StringReplace[StringSplit[ToString[#],{"Plus","Minus","Times"}],"MOMSUM"->""]&,momenta]]],Not[NumericQ[#]]&]];
 momentams=Select[momenta,StringMatchQ[ToString[#],RegularExpression["MOMSUM(\\S*)"]]&];
-Join[{momenta,momentams,Complement[momentaall,momenta,momentams],lorentzFromExpr[expr],spinorFromExpr[expr]},getAdjGroupIndices[expr,#]&/@ groupNames,getFundGroupIndices[expr,#]&/@ groupNames]];
+Join[{momenta,momentams,Complement[momentaall,momenta,momentams],lorentzFromExpr[expr],spinorFromExpr[expr]},getAdjGroupIndices[expr,#]&/@ groupNames,getFundGroupIndices[expr,#]&/@ groupNames,getASGroupIndices[expr,#]&/@ groupNames,getSSGroupIndices[expr,#]&/@ groupNames]];
 generatePrefixedList[prefix_String,length_Integer]:=ToExpression/@Table[prefix~~ToString[i],{i,length}];
 getAllIndicesReplaced[l_List]:=Join[Table[generatePrefixedList[prefixListIndices[[i]],Length[l[[i]]]],{i,Length[l]}]];
 generateReplList[from_,to_]:=Table[from[[gri1]]->to[[gri1]],{gri1,Length[from]}];
@@ -2021,7 +2100,14 @@ AutoDeclare Index "~~stringList@Take[prefixListIndices,{Length[prefixListLorentz
 
 *** declaring fundamental group indices ***
 dimension NR;
-AutoDeclare Index "~~stringList@Take[prefixListIndices,-Length[groupNames](*all fundamental prefixes*)]~~";
+AutoDeclare Index "~~stringList@Take[prefixListIndices,{Length[prefixListLorentzDirac]+Length[groupNames]+1,Length[prefixListLorentzDirac]+2*Length[groupNames]}(*all fundamental prefixes*)]~~";
+
+*** declaring labels of the antisymmetric and symmetric SU(N) generators ***
+Symbols NAS,NSS;
+dimension NAS;
+AutoDeclare Index "~~stringList@Take[prefixListIndices,{Length[prefixListLorentzDirac]+2*Length[groupNames]+1,Length[prefixListLorentzDirac]+3*Length[groupNames]}(*all antisymmetric label prefixes*)]~~";
+dimension NSS;
+AutoDeclare Index "~~stringList@Take[prefixListIndices,{Length[prefixListLorentzDirac]+3*Length[groupNames]+1,Length[prefixListLorentzDirac]+4*Length[groupNames]}(*all symmetric label prefixes*)]~~";
 "]~~If[partialtrace==False,"","
 *** declare Lorentz and Dirac tensors
 CFunction FTxdeltaLorentz,FTxdeltaDirac,FTxgamma,FTxgamma5,FTxCC,FTxepsLorentz;
@@ -2033,11 +2119,13 @@ Set spiIndices: "~~stringList[allindicesrepl[[3]]]~~";
 "~~If[Length[groupNames]==0,"","
 *** declare group names and tensors
 Symbol "~~stringList[groupNames]~~";
-CFunction FTxT,FTxF,FTxdeltaFund,FTxdeltaAdj"~~If[partialtrace,",FTxepsFund,FTxepsAdj",""]~~";
+CFunction FTxT,FTxF,FTxdeltaFund,FTxdeltaAdj,FTxTA,FTxTS,FTxdeltaAS,FTxdeltaSS"~~If[partialtrace,",FTxepsFund,FTxepsAdj",""]~~";
 
 "~~stringLines[Table["*** "~~ToString@groupNames[[i]]~~" index sets
 Set a"~~ToString@shortGroupNames[[i]]~~"Indices: "~~If[Length[allindicesrepl[[i+3]]]>=2,stringList[allindicesrepl[[i+3]]],"a"~~ToString@shortGroupNames[[i]]~~"1,a"~~ToString@shortGroupNames[[i]]~~"2"]~~";
-Set f"~~ToString@shortGroupNames[[i]]~~"Indices: "~~stringList[allindicesrepl[[i+3+Length[groupNames]]]]~~";"
+Set f"~~ToString@shortGroupNames[[i]]~~"Indices: "~~If[Length[allindicesrepl[[i+3+Length[groupNames]]]]>=2,stringList[allindicesrepl[[i+3+Length[groupNames]]]],"f"~~ToString@shortGroupNames[[i]]~~"1,f"~~ToString@shortGroupNames[[i]]~~"2"]~~";
+Set x"~~ToString@shortGroupNames[[i]]~~"Indices: "~~If[Length[allindicesrepl[[i+3+2*Length[groupNames]]]]>=2,stringList[allindicesrepl[[i+3+2*Length[groupNames]]]],"x"~~ToString@shortGroupNames[[i]]~~"1,x"~~ToString@shortGroupNames[[i]]~~"2"]~~";
+Set y"~~ToString@shortGroupNames[[i]]~~"Indices: "~~If[Length[allindicesrepl[[i+3+3*Length[groupNames]]]]>=2,stringList[allindicesrepl[[i+3+3*Length[groupNames]]]],"y"~~ToString@shortGroupNames[[i]]~~"1,y"~~ToString@shortGroupNames[[i]]~~"2"]~~";"
 ,{i,Length[shortGroupNames]}]]
 ]];
 
@@ -2261,7 +2349,7 @@ Abort[];
 allindicesextracted=getAllIndices[Plus@@exprlst];(*separates three different kinds of momenta*)
 allindices=Join[{Flatten[allindicesextracted[[1;;3;;2]]]},allindicesextracted[[4;;]]];(*same as above, but all momenta combined*)
 If[Not[DuplicateFreeQ[Flatten[allindices]]],Message[GenerateFormFile::duplicateindicesnames];Abort[];];
-allindicesrepl=getAllIndicesReplaced[allindices];(*format: {momX,lorX,spiX,adj1,adj2,...,adjN,fund1,fund2,...,fundN*)
+allindicesrepl=getAllIndicesReplaced[allindices];(*format: {momX,lorX,spiX,adj1,adj2,...,adjN,fund1,fund2,...,fundN,as1,...,asN,ss1,...,ssN*)
 indicesreplrule=generateReplList[Flatten[allindices[[2;;]]],Flatten[allindicesrepl[[2;;]]]];
 replacemomenta=If[Or@@Map[Not[StringFreeQ[ToString[#,InputForm,CharacterEncoding->"ASCII"],"\\"]]&,allindicesextracted[[1]]],True,False];
 momreplrule=If[replacemomenta,generateReplList[allindices[[1]],allindicesrepl[[1]]],{}];
