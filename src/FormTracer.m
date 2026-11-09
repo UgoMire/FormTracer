@@ -53,13 +53,19 @@ FormTracer::incompatiblemathematicaversion="The FormTracer requires Mathematica 
 
 FormTracer::formtracerdirectorynotfound="The FormTracer could not locate the FormTracer folder in your Applications folder. This is required for group traces.";
 
-DefineLorentzTensors::usage="DefineLorentzTensors[lorentzDelta_,vector_,scalarProduct_,epsilon_:Null,diracDelta_:Null,gamma_:Null,gamma5_:Null,vectorspatial_:Null,scalarProductspatial_:Null] defines Lorentz and Dirac tensors. For each of the entries one can either pass a symbol (e.g. gamma[mu,i,j]) or a list with a symbol and the corresponding indices (e.g. {gamma[i,mu,j,anotherArg],mu,i,j}) if they do not follow the default order used in the documentation.
+DefineLorentzTensors::usage="DefineLorentzTensors[lorentzDelta_,vector_,scalarProduct_,epsilon_:Null,diracDelta_:Null,gamma_:Null,gamma5_:Null,vectorspatial_:Null,scalarProductspatial_:Null,chargeConjugation_:Null] defines Lorentz and Dirac tensors. For each of the entries one can either pass a symbol (e.g. gamma[mu,i,j]) or a list with a symbol and the corresponding indices (e.g. {gamma[i,mu,j,anotherArg],mu,i,j}) if they do not follow the default order used in the documentation.
 
 Example call:
 DefineLorentzTensors[deltaLorentz[mu,nu],vec[p,mu],sp[p,q],eps[],deltaDirac[i,j],gamma[mu,i,j],gamma5[i,j]]
 
 Finite temperature example call:
 DefineLorentzTensors[deltaLorentz[mu,nu],vec[p,mu],sp[p,q],eps[],deltaDirac[i,j],gamma[mu,i,j],gamma5[i,j],vecs[p,mu],sps[p,q]]
+
+Charge conjugation example call (pass Null for vectorspatial and scalarProductspatial if finite temperature is not needed):
+DefineLorentzTensors[deltaLorentz[mu,nu],vec[p,mu],sp[p,q],eps[],deltaDirac[i,j],gamma[mu,i,j],gamma5[i,j],Null,Null,chargeC[i,j]]
+
+The charge conjugation matrix C=chargeC[i,j] obeys C.gamma[mu].C^-1 = -gamma[mu]^T, C.gamma5.C^-1 = gamma5^T, C^T = -C and C^-1 = -C (i.e. C.C = -1); write C^-1 as -chargeC[i,j]. It may also appear in shorthand gamma strings, e.g. gamma[{chargeC,mu},i,j].
+Dirac matrices may be contracted in any index order, e.g. gamma[mu,i,j]gamma[nu,k,j] corresponds to (gamma[mu].gamma[nu]^T)_ik. Transposed matrices are eliminated with C. Closed traces whose value depends on the representation of the Dirac algebra (e.g. a trace containing a single C) trigger FormTrace::noncovariant.
 
 DefineLorentzTensors clears all Lorentz tensor identities and all combined Lorentz tensors. They have to be declared after the syntax is specified.";
 
@@ -203,6 +209,8 @@ exportTmpVarType: is the type of exportResVar and exportTmpVar
 FormTrace::badarg="FormTrace was called with invalid arguments. Aborting. Type ?FormTrace for help!";
 
 FormTrace::formfailed="An unknow error occured in the FORM script.\nCheck whether there are undeclared variables and if so add them via AddExtraVars or DefineExtraVars.";
+
+FormTrace::noncovariant="The expression contains Dirac traces that depend on the representation of the Dirac algebra, i.e. they contain a single charge conjugation matrix or transposed Dirac matrices that cannot be eliminated with charge conjugation matrices: `1`. Aborting.";
 
 FormTrace::formnotfound="FormTracer could not find FORM. Please specify a valid FORM executable with DefineFormExecutable[path].";
 
@@ -843,7 +851,7 @@ formGenericDReplacementRules={};
 formPostGroupTensorRenamingRules={};
 groupTensorsList={};
 
-basicLorentzTensorsT0={FTxdeltaLorentz[_,_],FTxdeltaDirac[_,_],FTxvec[_,_],FTxgamma[_,_,_],FTxgamma5[_,_],FTxepsLorentz[__]};
+basicLorentzTensorsT0={FTxdeltaLorentz[_,_],FTxdeltaDirac[_,_],FTxvec[_,_],FTxgamma[_,_,_],FTxgamma5[_,_],FTxCC[_,_],FTxepsLorentz[__]};
 basicLorentzTensorsT={FTxvecs[_,_]};
 basicLorentzTensors=basicLorentzTensorsT0;
 lorentzTensors=basicLorentzTensors;
@@ -865,6 +873,7 @@ lorentzFromExprRules=basicLorentzFromExprRules;
 spinorFromExprRules={
 FTxgamma[x_,y_,z_]:>{y,z},
 FTxgamma5[y_,z_]:>{y,z},
+FTxCC[y_,z_]:>{y,z},
 FTxdeltaDirac[x_,y_]:>{x,y}
 };
 
@@ -927,7 +936,7 @@ outputRulesPartiallyTraced acting on FORM output with partial trace enabled,
 rules in outputRulesTraced are also added to outputRulesPartiallyTraced at the end
 *)
 DefineLorentzTensors[___]:=Message[DefineLorentzTensors::badarg];
-DefineLorentzTensors[lorentzDelta_,vector_,scalarProduct_,epsilon_:Null,spinorDelta_:Null,gamma_:Null,gamma5_:Null,vectorspatial_:Null,scalarProductspatial_:Null]:=Module[{inputRules={},outputRules={},outputRulesTraced={},outputRulesPartiallyTraced={},tmpExpr,tmpVars},
+DefineLorentzTensors[lorentzDelta_,vector_,scalarProduct_,epsilon_:Null,spinorDelta_:Null,gamma_:Null,gamma5_:Null,vectorspatial_:Null,scalarProductspatial_:Null,chargeConjugation_:Null]:=Module[{inputRules={},outputRules={},outputRulesTraced={},outputRulesPartiallyTraced={},tmpExpr,tmpVars},
 (* Clear combined Lorentz tensors and Lorentz tensor identities since they may use an old syntax which would lead to errors. *)
 ClearCombinedLorentzTensors[];
 ClearLorentzTensorIdentities[];
@@ -1000,6 +1009,18 @@ If[scalarProductspatial=!=Null,
 AppendTo[inputRules,barrepl[tmpExpr,tmpVars]:>Evaluate[FormTracer`Private`FTxsps[tmpVars[[1]],tmpVars[[2]]]]];
 AppendTo[outputRules,barrepl[FormTracer`Private`FTxsps[tmpVars[[1]],tmpVars[[2]]],tmpVars]:>Evaluate[tmpExpr]];
 AppendTo[outputRulesTraced,barrepl[Global`FTxsps[tmpVars[[1]],tmpVars[[2]]],tmpVars]:>Evaluate[tmpExpr]];
+];
+(*optional charge conjugation matrix replacement rule*)
+If[chargeConjugation=!=Null,
+{tmpExpr,tmpVars}=extractExprAndVars[chargeConjugation,2];
+AppendTo[inputRules,barrepl[tmpExpr,tmpVars]:>Evaluate[FormTracer`Private`FTxCC[tmpVars[[1]],tmpVars[[2]]]]];
+(*special rule for shorthand charge conjugation matrices in gamma strings*)
+AppendTo[inputRules,Head[tmpExpr]:>FormTracer`Private`FTxCC];
+AppendTo[outputRules,barrepl[FormTracer`Private`FTxCC[tmpVars[[1]],tmpVars[[2]]],tmpVars]:>Evaluate[tmpExpr]];
+AppendTo[outputRules,FormTracer`Private`FTxCC->Head[tmpExpr]];
+AppendTo[outputRulesPartiallyTraced,barrepl[Global`FTxCC[tmpVars[[1]],tmpVars[[2]]],tmpVars]:>Evaluate[tmpExpr]];
+(*charge conjugation matrices inside partially traced gamma strings*)
+AppendTo[outputRulesPartiallyTraced,Global`FTxC->Head[tmpExpr]];
 ];
 ,Message[DefineLorentzTensors::badarg]],{Take::take,Part::partw,General::stop}];
 
@@ -1369,6 +1390,8 @@ If[finiteTenabled,res=res//.FTxgamma[a___,FTxvecs[p_],b___]:>With[{lorDummy=Uniq
 res=res//.FTxgamma[a___,b_,c_,i_,j_]:>With[{spiDummy=Unique[spiDummyPrefix]},FTxgamma[a,b,i,spiDummy]FTxgamma[c,spiDummy,j]];
 (*convert gamma 5 matrices to FTxgamma5 symbols*)
 res=res/.{FTxgamma[5,spi1_,spi2_]:>FTxgamma5[spi1,spi2],FTxgamma[FTxgamma5,spi1_,spi2_]:>FTxgamma5[spi1,spi2]};
+(*convert charge conjugation matrices to FTxCC symbols*)
+res=res/.FTxgamma[FTxCC,spi1_,spi2_]:>FTxCC[spi1,spi2];
 Return[res];
 ];
 
@@ -1466,6 +1489,9 @@ Global`FTxgamma[mu_,i_,tempPartialTraceDummy[j_]]:>Global`FTxgamma[mu,i,getSpiDu
 
 Global`FTxgamma5[tempPartialTraceDummy[i_],j_]:>Global`FTxgamma5[getSpiDummy[i],j],
 Global`FTxgamma5[i_,tempPartialTraceDummy[j_]]:>Global`FTxgamma5[i,getSpiDummy[j]],
+
+Global`FTxCC[tempPartialTraceDummy[i_],j_]:>Global`FTxCC[getSpiDummy[i],j],
+Global`FTxCC[i_,tempPartialTraceDummy[j_]]:>Global`FTxCC[i,getSpiDummy[j]],
 
 Global`FTxepsLorentz[mu___,tempPartialTraceDummy[nu_],rho___]:>Global`FTxepsLorentz[mu,getLorDummy[nu],rho]
 };
@@ -1794,6 +1820,7 @@ Shortest["FTxT["~~group__~~", "~~x__~~", "~~y__~~", "~~z__~~"]"]:>"T("~~y~~","~~
 replaceLorentzTensors[expr_]:=StringReplace[expr,{
 Shortest["FTxgamma["~~x__~~", "~~y__~~", "~~z__~~"]"]:>"gamma("~~x~~","~~y~~","~~z~~")",
 Shortest["FTxgamma5["~~x__~~", "~~y__~~"]"]:>"gamma(g5,"~~x~~","~~y~~")",
+Shortest["FTxCC["~~x__~~", "~~y__~~"]"]:>"gamma(FTxC,"~~x~~","~~y~~")",
 Shortest["FTxepsLorentz["~~x__~~"]"]:>"e_("~~x~~")",
 Shortest["FTxdeltaLorentz["~~x__~~", "~~y__~~"]"]:>"d_("~~x~~","~~y~~")",
 Shortest["FTxdeltaDirac["~~x__~~", "~~y__~~"]"]:>"d_("~~x~~","~~y~~")",
@@ -1976,11 +2003,17 @@ AutoDeclare Vector "~~prefixListIndices[[1]]~~If[finiteTenabled,", vecsx",""]~~"
 dimension "~~ToString[First[lorentzDimensions]]~~";
 Index g5=0;
 Set setg5:g5;
+Index FTxC=0;
 AutoDeclare Index "~~prefixListIndices[[2]]~~";
 
 *** declaring Dirac indices ***
 dimension "~~ToString[Last[lorentzDimensions]]~~";
 AutoDeclare Index "~~prefixListIndices[[3]]~~";
+Index FTxsd;
+
+*** internal objects for Dirac chains (see diracchain.h) ***
+CFunction FTxS,FTxSc,FTxF,FTxB,FTxBt,FTxRT,FTxRTL,FTxJ,FTxJL,FTxNonCovTrace;
+Symbol FTxK,FTxKT,FTxG5F,FTxG5B,FTxG5Bt;
 "~~If[Length[groupNames]==0,"","
 *** declaring adjoint group indices ***
 dimension NA;
@@ -1991,7 +2024,7 @@ dimension NR;
 AutoDeclare Index "~~stringList@Take[prefixListIndices,-Length[groupNames](*all fundamental prefixes*)]~~";
 "]~~If[partialtrace==False,"","
 *** declare Lorentz and Dirac tensors
-CFunction FTxdeltaLorentz,FTxdeltaDirac,FTxgamma,FTxgamma5,FTxepsLorentz;
+CFunction FTxdeltaLorentz,FTxdeltaDirac,FTxgamma,FTxgamma5,FTxCC,FTxepsLorentz;
 
 *** declare index sets to distinguish deltas
 Set lorIndices: "~~If[Length[allindicesrepl[[2]]]>=2,stringList[allindicesrepl[[2]]],"lor1,lor2"]~~";
@@ -2058,8 +2091,8 @@ generateDiracContractionCode[]:="
 * Performs Lorentz/Dirac contraction
 ********************************************************************************
 
-*** combine Dirac matrices to Dirac string ***
-repeat id gamma(?lor1,spi1?,spi2?)*gamma(?lor2,spi2?,spi3?)=gamma(?lor1,?lor2,spi1,spi3);
+*** combine Dirac matrices to Dirac strings (handles transposed contractions and charge conjugation matrices) ***
+#call FTxDiracChains
 .sort
 
 *** convert Dirac strings without open indices to FORM gamma matrices ***
@@ -2273,7 +2306,7 @@ formexpr=generateFormExpressions[removeSquaredTensors[expandTerms[exprlst]]/.dim
 
 measureEvaluationTime[debuggingMode,"Time needed for string generation: ",
 (*put strings together; the result is the FORM program*)
-formCode=stringLines[Map["#include- "<>FileNameJoin[{formTracerDirectory,"Header",#}]&,Union[groupTracingAlgorithms[[All,2]],If[First[lorentzDimensions]=!=4,{"dirac.h"},{}]]]]~~"
+formCode=stringLines[Map["#include- "<>FileNameJoin[{formTracerDirectory,"Header",#}]&,Union[groupTracingAlgorithms[[All,2]],If[First[lorentzDimensions]=!=4,{"dirac.h"},{}],If[lorentzTensorReplacementRulesInput=!={},{"diracchain.h"},{}]]]]~~"
 "~~If[partialtrace,"#include- "<>FileNameJoin[{formTracerDirectory,"Header","misc.h"}],""]~~"
 "~~If[preambleprerepl=!="","
 ********************************************************************************
@@ -2396,6 +2429,7 @@ id mom1?(lor1?fixed_)=FTxvec(mom1,lor1);
 id d_(lor1?lorIndices,lor2?)=FTxdeltaLorentz(lor1,lor2);
 id d_(spi1?spiIndices,spi2?)=FTxdeltaDirac(spi1,spi2);
 id gamma(g5,spi1?,spi2?)=FTxgamma5(spi1,spi2);
+id gamma(FTxC,spi1?,spi2?)=FTxCC(spi1,spi2);
 id gamma(lor1?!setg5,spi1?,spi2?)=FTxgamma(lor1,spi1,spi2);
 Multiply replace_(gamma,FTxgamma);
 ",1]~~"
@@ -2467,6 +2501,16 @@ ImportFormResult[filename_String,deleteImportedFile_:False]:=convertPartiallyTra
 
 
 (* ::Input::Initialization:: *)
+(* converts a term printed by FORM that contains representation dependent traces into a readable string *)
+formatNonCovariantTrace[term_String,repl_List:{}]:=Module[{res,nameRules},
+nameRules=Map[RegularExpression["\\b"<>ToString[First[#]]<>"\\b"]->ToString[Last[#]]&,createOutputReplacementList[repl]];
+res=StringReplace[StringReplace[term,{"FTxK"->"C","FTxC"->"C",RegularExpression["\\bg5\\b"]->"gamma5"}],{RegularExpression["FTxB\\(([^()]*)\\)"]->"$1^T",RegularExpression["FTxF\\(([^()]*)\\)"]->"$1"}];
+res=StringCases[res,RegularExpression["FTxNonCovTrace\\(([^()]*)\\)"]:>"Tr["<>StringReplace["$1",","->"."]<>"]"];
+Return[StringRiffle[StringReplace[res,nameRules],", "]];
+];
+
+
+(* ::Input::Initialization:: *)
 FormTrace[___]:=Message[FormTrace::badarg];
 FormTrace[expr_,prerepl_List:{},postrepl_List:{},filename_:"",bracket_List:{},exportResVar_String:"expr",exportTmpVar_String:"w",exportVarType_String:"double"]:=Module[{timeString,formFile,resFile,format,optimization,formProcessResult,formConsoleOutput,formErrors,retValVariableLists,importedRes},
 If[expr===Null||checkFormExecutable[]==False,Abort[];];
@@ -2498,10 +2542,16 @@ retValVariableLists=generateFormFile[convertInput[expr,format==="mathematica"],f
 
 measureEvaluationTime[debuggingMode,"Time needed by Form: ",
 formProcessResult=RunProcess[{Sequence@@formCommandLine[formExecutable],"-q",formFile}];
-(* check exit code *)
-If[formProcessResult["ExitCode"]=!=0,Message[FormTrace::formeexitcode,formProcessResult["ExitCode"]]];
 (* check output string for error messages *)
 formConsoleOutput=formProcessResult["StandardOutput"];
+(* check for Dirac traces that depend on the representation of the Dirac algebra *)
+If[Not[StringFreeQ[formConsoleOutput,"FTxNonCovariantTrace: "]],
+Message[FormTrace::noncovariant,StringRiffle[DeleteDuplicates@StringCases[formConsoleOutput,"FTxNonCovariantTrace: "~~Shortest[term__]~~"\n":>formatNonCovariantTrace[term,retValVariableLists]],", "]];
+If[!debuggingMode,DeleteFile[formFile]];
+Abort[];
+];
+(* check exit code *)
+If[formProcessResult["ExitCode"]=!=0,Message[FormTrace::formeexitcode,formProcessResult["ExitCode"]]];
 If[Not[StringFreeQ[formConsoleOutput,formFile]](*FORM starts error messages with full file name*),
 formErrors=Flatten@StringCases[formConsoleOutput,Shortest[formFile~~msg1__~~"\n"~~msg2__~~"\n"]:>StringSplit[msg1<>"\n"<>msg2,formFile]];
 Map[Message[FormTrace::formerror,#]&,formErrors];

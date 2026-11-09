@@ -3,6 +3,20 @@
 (**************************************************)
 
 
+(***********) FormTracer Version 2.4.0 (***********)
+- New: Charge conjugation matrix C, declared as optional 10th argument of DefineLorentzTensors,
+  e.g. DefineLorentzTensors[deltaLorentz[mu,nu],vec[p,mu],sp[p,q],eps[],deltaDirac[i,j],gamma[mu,i,j],gamma5[i,j],Null,Null,CC[i,j]]
+  (pass Null for the finite temperature arguments if they are not needed). Conventions:
+  C.gamma[mu].C^-1 = -gamma[mu]^T, C.gamma5.C^-1 = gamma5^T, C^T = -C, C^-1 = -C. C may also be used in
+  shorthand gamma strings, e.g. gamma[{CC,5},i,j]. Works in d=4 and d dimensions, with and without
+  disentangled Lorentz structures and with partial traces.
+- New: Dirac matrices may be contracted in any index order, e.g. gamma[mu,i,j]gamma[nu,k,j] = (gamma[mu].gamma[nu]^T)_ik.
+  Transposed matrices are eliminated with C. Previously such contractions were not traced and remained in the result.
+- New: Dirac traces whose value depends on the representation of the Dirac algebra (e.g. Tr[gamma[mu].gamma[nu]^T]
+  or a trace with a single C) abort with the message FormTrace::noncovariant, which displays the offending trace.
+- The Dirac chain construction now lives in the FORM header Header/diracchain.h.
+
+
 (***********) FormTracer Version 2.3.8 (***********)
 - Bugfix: Allows again for inserting arguments to be passed to the form executable via DefineFormExecutable[],
   e.g. DefineFormExecutable["tform -w4"]. Everything from the first " -" on is passed as arguments,
